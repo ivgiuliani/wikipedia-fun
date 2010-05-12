@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+"""
+Extracts georeferenced pages from the xml dump
+"""
+
 import os
 import re
 import sys
@@ -6,6 +10,7 @@ import time
 
 from xml.parsers.expat import *
 from multiprocessing import Process, Manager
+from Queue import Empty as QueueEmpty
 
 def main(args):
     try:
@@ -33,10 +38,10 @@ def parse_dump(wikidump):
     parser_running = manager.Event()
 
     parser_running.set()
-    parser_process = Process(target=parser.run, args=(queue, ))
+    parser_process = Process(target=parser.run, args=(queue, ), name="Parser")
     parser_process.start()
 
-    extractor_process = Process(target=extractor.run, args=(queue, parser_running))
+    extractor_process = Process(target=extractor.run, args=(queue, parser_running), name="Extractor")
     extractor_process.start()
 
     parser_process.join()
@@ -136,7 +141,12 @@ class Extractor(object):
         self.counter = 0
 
         while self.parser_running.is_set() or not self.queue.empty():
-            item = self.queue.get()
+            try:
+                item = self.queue.get(timeout=2)
+            except QueueEmpty:
+                sys.stdout.write("[ Empty queue ]\n")
+                time.sleep(1)
+                continue
             if self.is_georeferenced(item["text"]):
                 self.counter += 1
                 self.dump.write("""
