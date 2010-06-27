@@ -12,6 +12,8 @@ from xml.parsers.expat import *
 from multiprocessing import Process, Manager
 from Queue import Empty as QueueEmpty
 
+ITEM_SEP = "--------------------"
+
 def main(args):
     try:
         wikidump = args[1]
@@ -134,35 +136,32 @@ class Extractor(object):
         self.dump.close()
 
     def extract(self):
-        self.dump.write("""
-<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.4/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mediawiki.org/xml/export-0.4/ http://www.mediawiki.org/xml/export-0.4.xsd" version="0.4" xml:lang="en">
-        \n""")
-
         self.counter = 0
-
         while self.parser_running.is_set() or not self.queue.empty():
             try:
-                item = self.queue.get(timeout=2)
+                item = self.queue.get(timeout=1)
             except QueueEmpty:
                 sys.stdout.write("[ Empty queue ]\n")
                 time.sleep(1)
                 continue
-            if self.is_georeferenced(item["text"]):
+            coord = self.get_georeference(item["text"])
+            if coord:
                 self.counter += 1
-                self.dump.write("""
-<page>
-    <title>%s</title>
-    <text>%s</text>
-</page>
-                \n""" % (item["title"], item["text"]))
+                self.dump.write("Title: %s\n" % item["title"])
+                self.dump.write("Coord: %s\n" % coord)
+                self.dump.write("%s\n\n%s\n\n" % (item["text"], ITEM_SEP))
+
                 sys.stdout.write("[%8d] Extracted %s\n" % (
                                         self.counter, item["title"]))
+        sys.stdout.write("\n\nDone extracting %d items\n\n" % self.counter)
 
-    def is_georeferenced(self, data):
+    def get_georeference(self, data):
         "Check whether a wiki entry is georeferenced"
         if data:
-            return bool(self.HASCOORD_REGEXP.search(data))
-        return False
+            geo = self.HASCOORD_REGEXP.search(data)
+            if geo:
+                return geo.group()
+        return None
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
