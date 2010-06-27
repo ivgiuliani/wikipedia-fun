@@ -116,10 +116,10 @@ class Extractor(object):
     Saves the georeferenced wiki pages extracted from the parser
     and dump them on the specified file
     """
-    HASCOORD_REGEXP = re.compile(r"{{coord"             \
-                                    "([A-z0-9_:\|=\.]*)"  \
-                                    "\|display=title"   \
-                                    "([A-z0-9_:\|=\.]*)"  \
+    HASCOORD_REGEXP = re.compile(r"{{coord"                   \
+                                    "([A-z0-9_:\|=\.\(\)]*)"  \
+                                    "\|display=title"         \
+                                    "([A-z0-9_:\|=\.\(\)]*)"  \
                                   "}}")
 
     def __init__(self, dumpfile):
