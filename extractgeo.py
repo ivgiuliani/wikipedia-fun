@@ -9,7 +9,6 @@ import sys
 import time
 
 from xml.parsers.expat import *
-from multiprocessing import Process, Manager
 from Queue import Empty as QueueEmpty
 
 ITEM_SEP = "--------------------"
@@ -32,27 +31,8 @@ def parse_dump(wikidump):
 
     sys.stdout.write("Parsing %s...\n" % wikipath)
 
-    parser = Parser(wikipath)
-    extractor = Extractor(dumppath)
-
-    manager = Manager()
-    queue = manager.Queue()
-    parser_running = manager.Event()
-
-    parser_running.set()
-    parser_process = Process(target=parser.run, args=(queue, ), name="Parser")
-    parser_process.start()
-
-    extractor_process = Process(target=extractor.run, args=(queue, parser_running), name="Extractor")
-    extractor_process.start()
-
-    parser_process.join()
-    sys.stdout.write("QUIT: parser\n")
-    parser_running.clear()
-
-    extractor_process.join()
-    sys.stdout.write("QUIT: extractor\n")
-
+    parser = Parser(wikipath, dumppath)
+    parser.run()
     sys.stdout.write("Job completed\n")
 
 
@@ -65,8 +45,13 @@ class Parser(object):
         "title": STATE_TITLE,
         "text":  STATE_TEXT,
     }
+    HASCOORD_REGEXP = re.compile(r"{{coord"                   \
+                                    "([A-z0-9_:\|=\.\(\)]*)"  \
+                                    "\|display=title"         \
+                                    "([A-z0-9_:\|=\.\(\)]*)"  \
+                                  "}}")
 
-    def __init__(self, wikipath):
+    def __init__(self, wikipath, dumppath):
         self.dumpfile = wikipath
         self.status = Parser.STATE_NONE
         self.current = {
@@ -81,9 +66,12 @@ class Parser(object):
         self.parser.EndElementHandler = self.endElement
         self.parser.CharacterDataHandler = self.textReceived
 
-    def run(self, queue):
-        self.queue = queue
+        self.extracted_dump = dumppath
+        self.extracted_count = 0
+
+    def run(self):
         dump = open(self.dumpfile, "r")
+        self.extracted = open(self.extracted_dump, "w")
         self.parser.ParseFile(dump)
         dump.close()
 
@@ -97,7 +85,10 @@ class Parser(object):
     def endElement(self, name):
         if name.lower() == "page":
             self.current["title"] = self.current["title"].strip()
-            self.queue.put(self.current.copy())
+
+            coord = self.get_georeference(self.current["text"])
+            if coord:
+                self.add_item(coord, self.current)
 
             self.current["title"] = None
             self.current["text"] = None
@@ -112,56 +103,25 @@ class Parser(object):
                 self.current[self.current_tag] = ""
             self.current[self.current_tag] += data
 
-
-class Extractor(object):
-    """
-    Saves the georeferenced wiki pages extracted from the parser
-    and dump them on the specified file
-    """
-    HASCOORD_REGEXP = re.compile(r"{{coord"                   \
-                                    "([A-z0-9_:\|=\.\(\)]*)"  \
-                                    "\|display=title"         \
-                                    "([A-z0-9_:\|=\.\(\)]*)"  \
-                                  "}}")
-
-    def __init__(self, dumpfile):
-        self.dumpfile = dumpfile
-
-    def run(self, queue, parser_running):
-        self.queue = queue
-        self.parser_running = parser_running
-        self.dump = open(self.dumpfile, "w")
-        self.extract()
-        self.dump.flush()
-        self.dump.close()
-
-    def extract(self):
-        self.counter = 0
-        while self.parser_running.is_set() or not self.queue.empty():
-            try:
-                item = self.queue.get(timeout=1)
-            except QueueEmpty:
-                sys.stdout.write("[ Empty queue ]\n")
-                time.sleep(1)
-                continue
-            coord = self.get_georeference(item["text"])
-            if coord:
-                self.counter += 1
-                self.dump.write("Title: %s\n" % item["title"])
-                self.dump.write("Coord: %s\n" % coord)
-                self.dump.write("%s\n\n%s\n\n" % (item["text"], ITEM_SEP))
-
-                sys.stdout.write("[%8d] Extracted %s\n" % (
-                                        self.counter, item["title"]))
-        sys.stdout.write("\n\nDone extracting %d items\n\n" % self.counter)
-
     def get_georeference(self, data):
-        "Check whether a wiki entry is georeferenced"
+        """
+        Check whether a wiki entry is georeferenced and if it is
+        return the extracted georeference in wikipedia format
+        """
         if data:
             geo = self.HASCOORD_REGEXP.search(data)
             if geo:
                 return geo.group()
         return None
+
+    def add_item(self, coord, item):
+        "Extract the current item to the georeferenced dump"
+        self.extracted_count += 1
+        self.extracted.write("Title: %s\n" % item["title"])
+        self.extracted.write("Coord: %s\n" % coord)
+        self.extracted.write("%s\n\n%s\n\n" % (item["text"], ITEM_SEP))
+
+        sys.stdout.write("[%8d] Extracted %s\n" % (self.extracted_count, item["title"]))
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
