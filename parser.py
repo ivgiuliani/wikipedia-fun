@@ -101,4 +101,6 @@ class Parser(object):
         sys.stdout.write("[%8d] Extracted %s\n" % (self.extracted_count, item["title"]))
 
 
-
+class DumpParser(object):
+    "Parse the georeferenced dump"
+    pass
