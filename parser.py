@@ -8,6 +8,16 @@ from xml.parsers.expat import *
 
 ITEM_SEP = "--------------------"
 
+class Entry(object):
+    "A georeferenced wikipedia entry"
+    def __init__(self, title, content, coords):
+        self.title = title
+        self.content = content
+        self.coords = coords
+
+    def __str__(self):
+        return "%s @%s" % (self.title, self.coords)
+
 class Parser(object):
     """
     Parse the whole wiki file and extracts only georeferenced entries
@@ -100,7 +110,27 @@ class Parser(object):
 
         sys.stdout.write("[%8d] Extracted %s\n" % (self.extracted_count, item["title"]))
 
-
 class DumpParser(object):
     "Parse the georeferenced dump"
-    pass
+    def __init__(self, path):
+        self.fd = open(path, "r")
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        title, coord, text = "", "", ""
+        for line in self.fd:
+            if line.startswith("Title: "):
+                title = line[len("Title: "):].strip()
+            elif line.startswith("Coord: "):
+                coord = line[len("Coord: "):].strip()
+            elif line.strip() == ITEM_SEP:
+                return Entry(title, text, coord)
+            else:
+                text += line
+        raise StopIteration
+
+    def close(self):
+        self.fd.close()
+
