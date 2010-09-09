@@ -49,7 +49,7 @@ def point_midpoint(p1, p2):
     lon1, lon2 = to_radians(p1.lon), to_radians(p2.lon)
 
     # again, we don't need to be very precise so a simple
-    # coordinate's mean it's enough
+    # coordinates mean it's enough
     new_lat = to_degrees((lat1 + lat2) / 2.0)
     new_lon = to_degrees((lon1 + lon2) / 2.0)
 
@@ -73,20 +73,20 @@ def build_tree(path):
     to each other. Returns the tree's root.
     """
     f = csv.reader(open(path, "r"))
-    # skip the first line that belongs to the header
-    f.next()
+    f.next() # skip the header line
 
     root = None
     for line in f:
         lang, title, lat, lon = line[:4]
+        lat, lon = float(lat), float(lon)
 
-        if not -90 <= float(lat) <= 90:
-            msg = "Warning: latitude at line %d not in -90/90 range (lat:%s/lon:%s) -- ignoring\n"
+        if not -90 <= lat <= 90:
+            msg = "Warning: latitude at line %d not in -90/90 range (lat:%s lon:%s) -- ignoring\n"
             sys.stderr.write(msg % (f.line_num, lat, lon))
             continue
 
-        if not -180 <= float(lon) <= 180:
-            msg = "Warning: longitude at line %d not in -180/180 range (lat:%s/lon%s) -- ignoring\n"
+        if not -180 <= lon <= 180:
+            msg = "Warning: longitude at line %d not in -180/180 range (lat:%s lon:%s) -- ignoring\n"
             sys.stderr.write(msg % (f.line_num, lat, lon))
             continue
 
