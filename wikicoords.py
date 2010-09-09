@@ -79,6 +79,15 @@ def build_tree(path):
     root = None
     for line in f:
         lang, title, lat, lon = line[:4]
+
+        if not -90 <= float(lat) <= 90:
+            sys.stderr.write("Warning: latitude at line %d not in -90/90 range -- ignoring\n" % f.line_num)
+            continue
+
+        if not -180 <= float(lon) <= 180:
+            sys.stderr.write("Warning: longitude at line %d not in -180/180 range -- ignoring\n" % f.line_num)
+            continue
+
         p = PointNode(lat, lon)
 
         # analyze only georeferenced pages from english wikipedia to
